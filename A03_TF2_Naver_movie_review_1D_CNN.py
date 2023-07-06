@@ -1,9 +1,10 @@
-! git clone https://github.com/simonjisu/nsmc_study.git
+'''
+Data Engineering
+'''
 
-from IPython.display import clear_output 
-clear_output()
-
-
+'''
+D01. Import Libraries for Data Engineering
+'''
 import re
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,20 +12,32 @@ import tensorflow as tf
 import unicodedata
 
 print("Tensorflow version {}".format(tf.__version__))
-tf.random.set_seed(1234)
+import random
+SEED = 1234
+tf.random.set_seed(SEED)
 AUTO = tf.data.experimental.AUTOTUNE
 
-# 1. Tokenizer Install & import
-# Keras Tokenizer는 tensorflow 2.X 에서 기본으로 제공하는 tokenizer이며, word level tokenizer이다. 이는 별도의 설치가 필요 없다.
+'''
+D02. Import Naver Movie Review Raw Dataset from Github
+'''
+! git clone https://github.com/simonjisu/nsmc_study.git
 
-# 2. Copy or load raw data to Colab
+from IPython.display import clear_output 
+clear_output()
+
+'''
+D03. [PASS] Tokenizer Install & import
+''' 
+# Keras Tokenizer is a tokenizer provided by default in tensorflow 2.X and is a word level tokenizer. It does not require a separate installation.
+
+'''
+D04. Define Hyperparameters for Data Engineering
+'''
 max_len = 50
-BATCH_SIZE  = 128
-BUFFER_SIZE = 20000
 
-import urllib3
-import zipfile
-import shutil
+'''
+D05. Load and modifiy to pandas dataframe
+'''
 import pandas as pd
 
 pd.set_option('display.max_colwidth', 100)
@@ -42,18 +55,31 @@ print(test.shape)
 train_data = train.dropna() #말뭉치에서 nan 값을 제거함
 test_data  = test.dropna()
 
-# 5. Preprocess and build list
+'''
+D06. [PASS] Delete duplicated data
+'''
 
+'''
+D07. [PASS] Select samples
+'''
+
+'''
+D08. Preprocess and build list
+'''
 def preprocess_func(sentence):
     # 구두점에 대해서 띄어쓰기
     # ex) 12시 땡! -> 12시 땡 !
     sentence = re.sub(r"([?.!,])", r" \1 ", sentence)
     sentence = sentence.strip()
-    sentence = sentence.strip()  
+    sentence = sentence.strip()
     return sentence
 
 train_data['document'] = train_data['document'].apply(preprocess_func)
 test_data['document']  = test_data['document'].apply(preprocess_func)
+
+'''
+D09. Add <SOS>, <EOS> for source and target
+'''
 
 train_data['label'] = train_data['label'].astype(int)
 Label_Train = train_data["label"].to_numpy()
@@ -69,25 +95,30 @@ print(src_train_df[:10])
 train_sentence  = src_train_df.apply(lambda x: "<SOS> " + str(x))
 test_sentence  = src_test_df.apply(lambda x: "<SOS> " + str(x))
 
+'''
+D10. Define tokenizer
+'''
+
 filters = '!"#$%&()*+,-./:;=?@[\\]^_`{|}~\t\n'
 oov_token = '<unk>'
 
-# Define tokenizer
 SRC_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters = filters, oov_token=oov_token)
 
 SRC_tokenizer.fit_on_texts(train_sentence)
 
 vocab_size = len(SRC_tokenizer.word_index) + 1
 
-print('Encoder 단어 집합의 크기 :',vocab_size)
+print('Word set size of Encoder :',vocab_size)
 
-# 7. Tokenizer test
+'''
+D11. Tokenizer test
+'''
+
 lines = [
   "게임 하고 싶은데 할래?",
   "나 너 좋아하는 것 같아",
   "딥 러닝 자연어 처리를 잘 하고 싶어"
 ]
-
 for line in lines:
     txt_2_ids = SRC_tokenizer.texts_to_sequences([line])
     ids_2_txt = SRC_tokenizer.sequences_to_texts(txt_2_ids)
@@ -95,10 +126,16 @@ for line in lines:
     print("txt_2_ids :", txt_2_ids)
     print("ids_2_txt :", ids_2_txt[0],"\n")
 
-# 8. Tokenize    
+'''
+D12. Tokenize
+'''
 # 토큰화 / 정수 인코딩 / 시작 토큰과 종료 토큰 추가 / 패딩
 Train_tkn_inputs = SRC_tokenizer.texts_to_sequences(train_sentence)
 Test_tkn_inputs  = SRC_tokenizer.texts_to_sequences(test_sentence)
+
+'''
+D13. [EDA] Explore the tokenized datasets
+'''
 
 len_result = [len(s) for s in Train_tkn_inputs]
 
@@ -111,63 +148,144 @@ plt.subplot(1,2,2)
 plt.hist(len_result, bins=50)
 plt.show()
 
-# 9. Pad sequences
-# 패딩
-padded_train_tkn = tf.keras.preprocessing.sequence.pad_sequences(Train_tkn_inputs,  maxlen=max_len, padding='post', truncating='post')
-padded_test_tkn = tf.keras.preprocessing.sequence.pad_sequences(Test_tkn_inputs,  maxlen=max_len, padding='post', truncating='post')
+'''
+D14. Pad sequences
+'''
 
-# 10. Data type define
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+padded_train_tkn = pad_sequences(Train_tkn_inputs,  maxlen=max_len, padding='post', truncating='post')
+padded_test_tkn = pad_sequences(Test_tkn_inputs,  maxlen=max_len, padding='post', truncating='post')
+
+'''
+D15. Data type define
+'''
 padded_train_tkn = tf.cast(padded_train_tkn, dtype=tf.int64)
 padded_test_tkn = tf.cast(padded_test_tkn, dtype=tf.int64)
 
-# 11. Check tokenized data
+'''
+D16. [EDA] Explore the Tokenized datasets
+'''
 print('질문 데이터의 크기(shape) :', padded_train_tkn.shape)
 
 # 0번째 샘플을 임의로 출력
 print(padded_train_tkn[0])
 
+'''
+D17. Split Data
+'''
 X_train = padded_train_tkn[:125000]
-y_train = Label_Train[:125000]
+Y_train = Label_Train[:125000]
 X_valid = padded_train_tkn[125000:]
-y_valid = Label_Train[125000:]
+Y_valid = Label_Train[125000:]
 X_test  = padded_test_tkn
-y_test  = Label_test
+Y_test  = Label_test
 
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.models import Sequential
+print('Number of sequences for training dataset   : {}'.format(len(X_train)))
+print('Number of sequences for validation dataset : {}'.format(len(X_valid)))
+print('Number of sequences for testing dataset    : {}'.format(len(X_test)))
+
+'''
+D18. [PASS] Build dataset
+'''
+# For eager mode, it is done at the "model.fit"
+
+'''
+D19. [PASS] Define some useful parameters for further use
+'''
+
+'''
+Model Engineering
+'''
+
+'''
+M01. Import Libraries for Model Engineering
+'''
+
+from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Dense, Embedding, Dropout, Conv1D, GlobalMaxPooling1D 
+from tensorflow.keras import optimizers
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from tensorflow.keras.models import load_model
 
-embedding_dim = 256
-hidden_units = 128
+'''
+M02. [PASS] TPU Initialization
+'''
 
+'''
+M03. Define Hyperparameters for Model Engineering
+'''
+embedding_dim = 256
+hidden_size = 128
+output_dim = 1  # output layer dimensionality = num_classes
+EPOCHS = 20
+batch_size = 100
+learning_rate = 5e-4
+
+'''
+M04. [PASS] Open "strategy.scope(  )"
+'''
+
+'''
+M05. Build NN model
+'''
 model = Sequential()
 model.add(Embedding(vocab_size, embedding_dim))
 model.add(Dropout(0.3))
-model.add(Conv1D(256, 3, padding='valid', activation='relu'))
+model.add(Conv1D(hidden_size, 3, padding='valid', activation='relu'))
 model.add(GlobalMaxPooling1D())
-model.add(Dense(128, activation='relu'))
+model.add(Dense(hidden_size, activation='relu'))
 model.add(Dropout(0.5))
-model.add(Dense(1, activation='sigmoid'))
+model.add(Dense(output_dim, activation='sigmoid'))
 
-model.compile(optimizer='adam', loss = 'binary_crossentropy', metrics = ['accuracy'])
+'''
+M06. Optimizer
+'''
+optimizer = optimizers.Adam(learning_rate=learning_rate)
+
+'''
+M07. Model Compilation - model.compile
+'''
+# model.compile(optimizer='adam', loss = 'binary_crossentropy', metrics = ['accuracy'])
+model.compile(optimizer=optimizer, loss = 'binary_crossentropy',
+              metrics = ['accuracy'])
 
 model.summary()
+
+'''
+M08. EarlyStopping
+'''
 es = EarlyStopping(monitor = 'val_loss', mode = 'min', verbose = 1, patience = 8)
+
+'''
+M09. ModelCheckpoint
+'''
 mc = ModelCheckpoint('best_model.h5', monitor = 'val_accuracy', mode = 'max', verbose = 1, save_best_only = True)
-history = model.fit(X_train, y_train, epochs = 20, validation_data = (X_valid, y_valid), callbacks=[es, mc])
 
+'''
+M10. Train and Validation - `model.fit`
+'''
+history = model.fit(X_train, Y_train, epochs = EPOCHS,
+                    batch_size=batch_size,
+                    validation_data = (X_valid, Y_valid),
+                    verbose=1,
+                    callbacks=[es, mc])
+
+'''
+M11. Assess model performance
+'''
 loaded_model = load_model('best_model.h5')
-print("\n 테스트 정확도: %.4f" % (loaded_model.evaluate(X_test, y_test)[1]))
+print("\n Test Accuracy: %.4f" % (loaded_model.evaluate(X_test, Y_test)[1]))
 
+'''
+M12. [Opt] Plot Loss and Accuracy
+'''
 history_dict = history.history
 history_dict.keys()
 
-acc = history_dict['accuracy']
-val_acc = history_dict['val_accuracy']
-loss = history_dict['loss']
+acc      = history_dict['accuracy']
+val_acc  = history_dict['val_accuracy']
+loss     = history_dict['loss']
 val_loss = history_dict['val_loss']
 
 epochs = range(1, len(acc) + 1)
@@ -193,7 +311,9 @@ plt.legend(loc='lower right')
 
 plt.show()
 
-
+'''
+M13. [Opt] Training result test for Code Engineering
+'''
 def sentiment_predict(new_sentence):
     # 알파벳과 숫자를 제외하고 모두 제거 및 알파벳 소문자화
     new_sentence = preprocess_func(new_sentence)
@@ -213,7 +333,7 @@ for idx in range(10):
     test_input = test_sentence[20000+idx]
     print("Test sentence from datasets:\n", test_input)
     sentiment_predict(test_input)
-    if(y_test[20000+idx] > 0.5):
+    if(Y_test[20000+idx] > 0.5):
         print("Ground truth is positive!")
     else:
         print("Ground truth is negative!")
